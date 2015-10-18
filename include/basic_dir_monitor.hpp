@@ -92,9 +92,10 @@ public:
     }
 
     template <typename Handler>
-    void async_monitor(Handler handler)
+    BOOST_ASIO_INITFN_RESULT_TYPE(Handler, void(dir_monitor_event))
+        async_monitor(BOOST_ASIO_MOVE_ARG(Handler) handler)
     {
-        this->get_service().async_monitor(this->get_implementation(), handler);
+        return this->service.async_monitor(this->implementation, BOOST_ASIO_MOVE_CAST(Handler)(handler));
     }
 };
 

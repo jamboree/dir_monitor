@@ -150,26 +150,26 @@ public:
     class monitor_operation
     {
     public:
-        monitor_operation(implementation_type &impl, boost::asio::io_service &io_service, Handler handler)
+        monitor_operation(implementation_type &impl, boost::asio::io_service &io_service, Handler& handler)
             : impl_(impl),
             io_service_(io_service),
             work_(io_service),
-            handler_(handler)
+            handler_(BOOST_ASIO_MOVE_CAST(Handler)(handler))
         {
         }
 
-        void operator()() const
+        void operator()()
         {
             implementation_type impl = impl_.lock();
             if (impl)
             {
                 boost::system::error_code ec;
                 dir_monitor_event ev = impl->popfront_event(ec);
-                this->io_service_.post(boost::asio::detail::bind_handler(handler_, ec, ev));
+                this->io_service_.post(boost::asio::detail::bind_handler(BOOST_ASIO_MOVE_CAST(Handler)(handler_), ec, ev));
             }
             else
             {
-                this->io_service_.post(boost::asio::detail::bind_handler(handler_, boost::asio::error::operation_aborted, dir_monitor_event()));
+                this->io_service_.post(boost::asio::detail::bind_handler(BOOST_ASIO_MOVE_CAST(Handler)(handler_), boost::asio::error::operation_aborted, dir_monitor_event()));
             }
         }
 
@@ -181,9 +181,16 @@ public:
     };
 
     template <typename Handler>
-    void async_monitor(implementation_type &impl, Handler handler)
+    BOOST_ASIO_INITFN_RESULT_TYPE(Handler, void(dir_monitor_event))
+        async_monitor(implementation_type &impl, BOOST_ASIO_MOVE_ARG(Handler) handler)
     {
-        this->async_monitor_io_service_.post(monitor_operation<Handler>(impl, this->get_io_service(), handler));
+        detail::async_result_init<
+            Handler, void(dir_monitor_event)> init(
+                BOOST_ASIO_MOVE_CAST(Handler)(handler));
+
+        this->async_monitor_io_service_.post(monitor_operation<BOOST_ASIO_HANDLER_TYPE(Handler, void(dir_monitor_event))>(impl, this->get_io_service(), init.handler));
+
+        return init.result.get();
     }
 
 private:
@@ -275,14 +282,14 @@ private:
     bool running()
     {
         // Access to run_ is sychronized with stop_work_thread().
-        boost::mutex::scoped_lock lock(work_thread_mutex_);
+        boost::lock_guard<boost::mutex> lock(work_thread_mutex_);
         return run_;
     }
 
     void stop_work_thread()
     {
         // Access to run_ is sychronized with running().
-        boost::mutex::scoped_lock lock(work_thread_mutex_);
+        boost::lock_guard<boost::mutex> lock(work_thread_mutex_);
         run_ = false;
 
         // By setting the third paramter to 0 GetQueuedCompletionStatus() will return with a null pointer as the completion key.
