@@ -51,7 +51,7 @@ public:
     explicit basic_dir_monitor_service(boost::asio::io_service &io_service)
         : boost::asio::io_service::service(io_service),
         iocp_(init_iocp()),
-        run_(true),
+        run_(true), recursive_(false),
         work_thread_(&boost::asio::basic_dir_monitor_service<DirMonitorImplementation>::work_thread, this),
         async_monitor_work_(new boost::asio::io_service::work(async_monitor_io_service_)),
         async_monitor_thread_(boost::bind(&boost::asio::io_service::run, &async_monitor_io_service_))
@@ -121,7 +121,7 @@ public:
         }
 
         DWORD bytes_transferred; // ignored
-        BOOL res = ReadDirectoryChangesW(ck->handle, ck->buffer, sizeof(ck->buffer), FALSE, 0x1FF, &bytes_transferred, &ck->overlapped, NULL);
+        BOOL res = ReadDirectoryChangesW(ck->handle, ck->buffer, sizeof(ck->buffer), recursive_, 0x1FF, &bytes_transferred, &ck->overlapped, NULL);
         if (!res)
         {
             delete ck;
@@ -144,6 +144,11 @@ public:
     dir_monitor_event monitor(implementation_type &impl, boost::system::error_code &ec)
     {
         return impl->popfront_event(ec);
+    }
+
+    void set_recursive(bool flag)
+    {
+        recursive_ = flag;
     }
 
     template <typename Handler>
@@ -265,7 +270,7 @@ private:
                         while (fni->NextEntryOffset);
 
                         ZeroMemory(&ck->overlapped, sizeof(ck->overlapped));
-                        BOOL res = ReadDirectoryChangesW(ck->handle, ck->buffer, sizeof(ck->buffer), FALSE, 0x1FF, &bytes_transferred, &ck->overlapped, NULL);
+                        BOOL res = ReadDirectoryChangesW(ck->handle, ck->buffer, sizeof(ck->buffer), recursive_, 0x1FF, &bytes_transferred, &ck->overlapped, NULL);
                         if (!res)
                         {
                             delete ck;
@@ -337,7 +342,7 @@ private:
 
     HANDLE iocp_;
     boost::mutex work_thread_mutex_;
-    bool run_;
+    bool run_, recursive_;
     boost::thread work_thread_;
     boost::asio::io_service async_monitor_io_service_;
     boost::scoped_ptr<boost::asio::io_service::work> async_monitor_work_;

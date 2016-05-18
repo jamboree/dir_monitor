@@ -78,6 +78,11 @@ public:
         this->get_service().remove_directory(this->get_implementation(), dirname);
     }
 
+    void set_recursive(bool flag)
+    {
+        this->get_service().set_recursive(flag);
+    }
+
     dir_monitor_event monitor()
     {
         boost::system::error_code ec;
